@@ -14,7 +14,7 @@ class dotdict(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
-class ImageDataset():
+class ImageDataset(Data.Dataset):
     def __init__(self, train=True):
         """
         Initialize a dataset as a list of IDs corresponding to each item of data set
@@ -64,7 +64,7 @@ class ImageDataset():
                   'label': torch.tensor(label).float()}       # sync label to float (pred from model will be make into float as well)
         return dotdict(sample)
 
-class ImageDataLoader():
+class ImageDataLoader(Data.DataLoader):
     def __init__(self, train_val_ratio, batch_size, shuffle=True):
         self.train_dataset = ImageDataset(train=True)
         self.test_dataset = ImageDataset(train=False)

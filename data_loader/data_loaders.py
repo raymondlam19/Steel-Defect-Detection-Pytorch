@@ -65,16 +65,16 @@ class ImageDataset(Data.Dataset):
         return dotdict(sample)
 
 class ImageDataLoader(Data.DataLoader):
-    def __init__(self, train_val_ratio, batch_size, shuffle=True):
+    def __init__(self, validation_split, batch_size, shuffle=True):
         self.train_dataset = ImageDataset(train=True)
         self.test_dataset = ImageDataset(train=False)
         self.train_loader = Data.DataLoader(
-            Data.random_split(self.train_dataset, [int(len(self.train_dataset)*train_val_ratio), len(self.train_dataset)-int(len(self.train_dataset)*train_val_ratio)])[0],
+            Data.random_split(self.train_dataset, [int(len(self.train_dataset)*validation_split), len(self.train_dataset)-int(len(self.train_dataset)*validation_split)])[0],
             batch_size = batch_size, 
             shuffle = shuffle
         )
         self.val_loader = Data.DataLoader(
-            Data.random_split(self.train_dataset, [int(len(self.train_dataset)*train_val_ratio), len(self.train_dataset)-int(len(self.train_dataset)*train_val_ratio)])[1],
+            Data.random_split(self.train_dataset, [int(len(self.train_dataset)*validation_split), len(self.train_dataset)-int(len(self.train_dataset)*validation_split)])[1],
             batch_size = batch_size, 
             shuffle = shuffle
         )
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from torch.autograd import Variable
 
-    dl = ImageDataLoader(train_val_ratio=0.8, batch_size=4, shuffle=True)
+    dl = ImageDataLoader(validation_split=0.8, batch_size=4, shuffle=True)
     train_loader = dl.train_loader
     print(f"Train set length: {len(train_loader.dataset)}")
     print(f"Total training steps in an epoch: {len(train_loader)}\n")

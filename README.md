@@ -114,7 +114,7 @@ Try `python train.py -c config.json` to run code.
 Config files are in `.json` format:
 ```javascript
 {
-  "name": "Mnist_LeNet",        // training session name
+  "name": "Steel_Defect_Detection",        // training session name
   "n_gpu": 1,                   // number of GPUs to use for training.
   
   "arch": {
@@ -141,7 +141,7 @@ Config files are in `.json` format:
       "amsgrad": true
     }
   },
-  "loss": "nll_loss",                  // loss
+  "loss": "binary_cross_entropy",                  // loss
   "metrics": [
     "accuracy", "top_k_acc"            // list of metrics to evaluate
   ],                         
@@ -323,7 +323,7 @@ The `validation_split` can be a ratio of validation set per total data(0.0 <= fl
 ### Checkpoints
 You can specify the name of the training session in config files:
   ```json
-  "name": "MNIST_LeNet",
+  "name": "Steel_Defect_Detection",
   ```
 
 The checkpoints will be saved in `save_dir/name/timestamp/checkpoint_epoch_n`, with timestamp in mmdd_HHMMSS format.

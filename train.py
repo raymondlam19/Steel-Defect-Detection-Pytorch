@@ -23,7 +23,8 @@ def main(config):
 
     # setup data_loader instances
     data_loader = config.init_obj('data_loader', module_data)
-    valid_data_loader = data_loader.split_validation()
+    train_loader = data_loader.train_loader
+    val_loader = data_loader.val_loader
 
     # build model architecture, then print to console
     model = config.init_obj('arch', module_arch)
@@ -47,8 +48,8 @@ def main(config):
     trainer = Trainer(model, criterion, metrics, optimizer,
                       config=config,
                       device=device,
-                      data_loader=data_loader,
-                      valid_data_loader=valid_data_loader,
+                      data_loader=train_loader,
+                      valid_data_loader=val_loader,
                       lr_scheduler=lr_scheduler)
 
     trainer.train()

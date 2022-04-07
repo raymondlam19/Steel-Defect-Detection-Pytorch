@@ -25,8 +25,8 @@ class ImageDataset(Data.Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        self.df = pd.read_csv("./input/train_pivot.csv")
-        self.root_dir = os.path.join('./input/', 'train_images/' if train==True else 'test_images/')
+        self.df = pd.read_csv("./data/train_pivot.csv")
+        self.root_dir = os.path.join('./data/', 'train_images/' if train==True else 'test_images/')
 
     def __len__(self):
         """

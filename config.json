@@ -12,8 +12,8 @@
     "data_loader": {
         "type": "ImageDataLoader",
         "args":{
-            "validation_split": 0.1,
-            "batch_size": 128,
+            "validation_split": 0.8,
+            "batch_size": 4,
             "shuffle": true
         }
     },
@@ -37,7 +37,7 @@
         }
     },
     "trainer": {
-        "epochs": 30,
+        "epochs": 2,
 
         "save_dir": "saved/",
         "save_period": 1,

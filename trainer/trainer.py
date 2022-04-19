@@ -29,6 +29,7 @@ class Trainer(BaseTrainer):
         self.lr_scheduler = lr_scheduler
         self.log_step = 100     #int(np.sqrt(train_loader.batch_size))
 
+        self.log = MetricTracker().result()
         self.train_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
         self.valid_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
 
@@ -57,7 +58,7 @@ class Trainer(BaseTrainer):
                 self.train_metrics.update(met.__name__, met(output, target))
 
             if batch_idx % self.log_step == 0:
-                self.logger.debug('Epoch: {}, Step: {}, step_train_loss: {:.6f}'.format(
+                self.logger.debug('Epoch: {}, Step: {}, step_train_loss: {:.4f}'.format(
                     epoch,
                     self._progress(batch_idx),
                     loss.item()))
@@ -65,15 +66,32 @@ class Trainer(BaseTrainer):
 
             if batch_idx == self.len_epoch:
                 break
-        log = self.train_metrics.result()
+        train_log = self.train_metrics.result()
+        self.log.update(**{'train_'+k : v for k, v in train_log.items()})
+
+        # add epoch_avg_train_loss into tensorboard
+        try:
+            print(self.log['train_loss'])
+            print(self.log['train_accuracy'])
+        except:
+            print('train_metrics error')
+        #self.writer.add_scalar('epoch_avg_train_loss', self.log['train_loss'])
 
         if self.do_validation:
             val_log = self._valid_epoch(epoch)
-            log.update(**{'val_'+k : v for k, v in val_log.items()})
+            self.log.update(**{'val_'+k : v for k, v in val_log.items()})
+
+            # add epoch_avg_train_loss into tensorboard
+            try:
+                print(self.log['val_loss'])
+                print(self.log['val_accuracy'])
+            except:
+                print('valid_metrics error')
+            #self.writer.add_scalar('epoch_avg_val_loss', self.log['val_loss'])
 
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
-        return log
+        return self.log
 
     def _valid_epoch(self, epoch):
         """
@@ -101,6 +119,7 @@ class Trainer(BaseTrainer):
         # add histogram of model parameters to the tensorboard
         for name, p in self.model.named_parameters():
             self.writer.add_histogram(name, p, bins='auto')
+
         return self.valid_metrics.result()
 
     def _progress(self, batch_idx):

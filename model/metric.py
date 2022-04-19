@@ -9,7 +9,8 @@ def accuracy(prob, labels):
             labels: a batch of labels from data loader
     '''
     preds = (prob>0.5).float()
-    return (torch.tensor(((labels==preds).sum(axis=1)==4).sum() / len(preds))).item()
+    return (((labels==preds).sum(axis=1)==4).sum() / len(preds)).item()
+    #return torch.tensor(((labels==preds).sum(axis=1)==4).sum() / len(preds)).item()
 
 # def accuracy(output, target):
 #     with torch.no_grad():

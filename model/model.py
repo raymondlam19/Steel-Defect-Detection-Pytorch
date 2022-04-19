@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from base import BaseModel
@@ -50,7 +51,7 @@ class CNN(BaseModel):
         x = self.conv5(x)           # (batch_size, 256, 16, 16)
         x = x.view(x.size(0), -1)   # (batch_size, 256*16*16)   cannot use flatten here which will be (batch_size*256*16*16)
         x = F.relu(self.linear1(x), inplace=True)
-        out = F.sigmoid(self.bn2(self.linear2(x)))
+        out = torch.sigmoid(self.bn2(self.linear2(x)))
         #out = self.classifier(x)    # (512 * 16 * 100) -> (512) -> (4)
         return out.float()          # sigmoid [0 1]: return a probabilty of each class
 

@@ -65,3 +65,18 @@ class MetricTracker:
 
     def result(self):
         return dict(self._data.average)
+
+if __name__ == '__main__':
+    log = MetricTracker().result()
+    train_metrics = MetricTracker('loss', *['accuracy'])
+    valid_metrics = MetricTracker('loss', *['accuracy'])
+    print(f'Before: log: {log}')
+
+    train_log = train_metrics.result()
+    val_log = valid_metrics.result()
+    print(f'Before: train_log: {train_log}')
+    print(f'Before: val_log: {val_log}')
+
+    log.update(**{'avg_train_'+k : v for k, v in train_log.items()})
+    log.update(**{'avg_val_'+k : v for k, v in val_log.items()})
+    print(f'After: log: {log}')

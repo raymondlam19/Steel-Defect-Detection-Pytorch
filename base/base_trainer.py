@@ -2,6 +2,9 @@ import torch
 from abc import abstractmethod
 from numpy import inf
 from logger import TensorboardWriter
+import pandas as pd
+import os
+import matplotlib.pyplot as plt
 
 
 class BaseTrainer:
@@ -38,9 +41,10 @@ class BaseTrainer:
         self.start_epoch = 1
 
         self.checkpoint_dir = config.save_dir
+        self.log_dir = config.log_dir
 
         # setup visualization writer instance                
-        self.writer = TensorboardWriter(config.log_dir, self.logger, cfg_trainer['tensorboard'])
+        self.writer = TensorboardWriter(self.log_dir, self.logger, cfg_trainer['tensorboard'])
 
         if config.resume is not None:
             self._resume_checkpoint(config.resume)
@@ -59,6 +63,8 @@ class BaseTrainer:
         Full training logic
         """
         not_improved_count = 0
+        history = []
+
         for epoch in range(self.start_epoch, self.epochs + 1):
             result = self._train_epoch(epoch)
 
@@ -66,9 +72,12 @@ class BaseTrainer:
             log = {'epoch': epoch}
             log.update(result)
 
+            # save history csv
+            history.append(log)
+
             # print logged informations to the screen
             for key, value in log.items():
-                self.logger.info('    {:15s}: {}'.format(str(key), value))
+                self.logger.info('    {:20s}: {:.4f}'.format(str(key), value))
 
             # evaluate model performance according to configured metric, save best checkpoint as model_best
             best = False
@@ -97,6 +106,41 @@ class BaseTrainer:
 
             if epoch % self.save_period == 0:
                 self._save_checkpoint(epoch, save_best=best)
+            
+            # draw loss & metric every epoch end
+            self._draw_loss_metric(pd.DataFrame(history))
+
+        plt.ioff()
+        plt.show()
+
+        # save history into a csv at the end of the last epoch
+        df_history =  pd.DataFrame(history)
+        df_history.to_csv(os.path.join(self.log_dir, 'history.csv'), index=False)
+        print('Saved History csv')
+
+    def _draw_loss_metric(self, history):
+        '''
+            Plot train_loss, val_loss, val_acc every epoch end
+        '''
+        num_plots = len(self.metric_ftns)+1
+        
+        plt.ion()
+        fig, axs = plt.subplots(num_plots,1, figsize=(12,10))
+        axs[0].set_title("train_loss vs val_loss")
+        axs[0].plot(history['epoch'], history['train_loss'])
+        axs[0].plot(history['epoch'], history['val_loss'])
+        axs[0].set_xlabel('Epoch')
+        axs[0].set_ylabel('Loss')
+        axs[0].legend(['train_loss', 'val_loss'], loc='upper right')
+
+        for i, met in enumerate(self.metric_ftns):
+            axs[i+1].set_title(met.__name__)
+            axs[i+1].plot(history['epoch'], history['val_'+met.__name__])
+            axs[i+1].set_xlabel('Epoch')
+            axs[i+1].set_ylabel(met.__name__)
+            
+        #fig.canvas.draw()
+        #plt.show()
 
     def _save_checkpoint(self, epoch, save_best=False):
         """

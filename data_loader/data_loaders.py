@@ -69,12 +69,12 @@ class ImageDataLoader(Data.DataLoader):
         self.train_dataset = ImageDataset(train=True)
         self.test_dataset = ImageDataset(train=False)
         self.train_loader = Data.DataLoader(
-            Data.random_split(self.train_dataset, [int(len(self.train_dataset)*validation_split), len(self.train_dataset)-int(len(self.train_dataset)*validation_split)])[0],
+            Data.random_split(self.train_dataset, [int(len(self.train_dataset)*(1-validation_split)), len(self.train_dataset)-int(len(self.train_dataset)*(1-validation_split))])[0],
             batch_size = batch_size, 
             shuffle = shuffle
         )
         self.val_loader = Data.DataLoader(
-            Data.random_split(self.train_dataset, [int(len(self.train_dataset)*validation_split), len(self.train_dataset)-int(len(self.train_dataset)*validation_split)])[1],
+            Data.random_split(self.train_dataset, [int(len(self.train_dataset)*(1-validation_split)), len(self.train_dataset)-int(len(self.train_dataset)*(1-validation_split))])[1],
             batch_size = batch_size, 
             shuffle = shuffle
         )

@@ -25,8 +25,9 @@ class ImageDataset(Data.Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        self.df = pd.read_csv("./data/train_pivot.csv")
-        self.root_dir = os.path.join('./data/', 'train_images/' if train==True else 'test_images/')
+        self.train = train
+        self.df = pd.read_csv("./data/train_pivot.csv" if self.train==True else "./data/testset.csv")
+        self.root_dir = os.path.join('./data/', 'train_images/' if self.train==True else 'test_images/')
 
     def __len__(self):
         """
@@ -60,57 +61,79 @@ class ImageDataset(Data.Dataset):
         # Label
         label = self.df.iloc[idx, 1:].values.astype(float)
         
-        sample = {'image': transform(image),                # (1, 256, 1600), do not squeeze here as conv layer require 3D input
-                  'label': torch.tensor(label).float()}       # sync label to float (pred from model will be make into float as well)
+        if self.train:
+            sample = {
+                'image': transform(image),              # (1, 256, 1600), do not squeeze here as conv layer require 3D input
+                'label': torch.tensor(label).float()    # sync label to float (pred from model will be make into float as well)
+            }       
+        else:
+            sample = {
+                'ImageId': self.df.loc[idx, 'ImageId'],
+                'image': transform(image)
+            }
         return dotdict(sample)
 
 class ImageDataLoader(Data.DataLoader):
     def __init__(self, validation_split, batch_size, shuffle=True):
-        self.train_dataset = ImageDataset(train=True)
+        self.dataset = ImageDataset(train=True)
+        self.train_dataset, self.val_dataset = Data.random_split(self.dataset, [int(len(self.dataset)*(1-validation_split)), len(self.dataset)-int(len(self.dataset)*(1-validation_split))])
         self.test_dataset = ImageDataset(train=False)
+
         self.train_loader = Data.DataLoader(
-            Data.random_split(self.train_dataset, [int(len(self.train_dataset)*(1-validation_split)), len(self.train_dataset)-int(len(self.train_dataset)*(1-validation_split))])[0],
+            self.train_dataset,
             batch_size = batch_size, 
             shuffle = shuffle
         )
         self.val_loader = Data.DataLoader(
-            Data.random_split(self.train_dataset, [int(len(self.train_dataset)*(1-validation_split)), len(self.train_dataset)-int(len(self.train_dataset)*(1-validation_split))])[1],
+            self.val_dataset,
             batch_size = batch_size, 
             shuffle = shuffle
         )
         self.test_loader = Data.DataLoader(
-            ImageDataset(train=False),
+            self.test_dataset,
             batch_size = batch_size, 
-            shuffle = shuffle
+            shuffle = False
         )
         
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from torch.autograd import Variable
 
-    dl = ImageDataLoader(validation_split=0.8, batch_size=4, shuffle=True)
+    dl = ImageDataLoader(validation_split=0.2, batch_size=16, shuffle=True)
     train_loader = dl.train_loader
     print(f"Train set length: {len(train_loader.dataset)}")
     print(f"Total training steps in an epoch: {len(train_loader)}\n")
 
     val_loader = dl.val_loader
-    print(f"Train set length: {len(val_loader.dataset)}")
-    print(f"Total training steps in an epoch: {len(val_loader)}\n")
+    print(f"Val set length: {len(val_loader.dataset)}")
+    print(f"Total val steps in an epoch: {len(val_loader)}\n")
 
     test_loader = dl.test_loader
-    print(f"Train set length: {len(test_loader.dataset)}")
-    print(f"Total training steps in an epoch: {len(test_loader)}\n")
+    print(f"Test set length: {len(test_loader.dataset)}")
+    print(f"Total testing steps in an epoch: {len(test_loader)}\n")
 
-    # Show a sample image with its label
-    for step, data in enumerate(train_loader):
-        b_x = Variable(data['image'])
-        b_y = Variable(data['label'])
+    # Show a sample image with its label (train_loader)
+    # for step, data in enumerate(train_loader):
+    #     b_x = Variable(data['image'])
+    #     b_y = Variable(data['label'])
+
+    #     plt.figure(figsize=(12,4))
+    #     plt.axis('off')
+    #     plt.imshow(b_x[0].detach().numpy().squeeze()) # Always use .detach() instead of .data which will be expired
+    #     plt.show()
+    #     print(b_y[0].detach().numpy())
+    #     break
+    
+    # test_loader
+    for step, data in enumerate(test_loader):
+        imgids = data['ImageId']
+        images = Variable(data['image'])
 
         plt.figure(figsize=(12,4))
         plt.axis('off')
-        plt.imshow(b_x[0].detach().numpy().squeeze()) # Always use .detach() instead of .data which will be expired
+        plt.title(imgids[0])
+        plt.imshow(images[0].detach().numpy().squeeze()) # Always use .detach() instead of .data which will be expired
         plt.show()
-        print(b_y[0].detach().numpy())
         break
 
 

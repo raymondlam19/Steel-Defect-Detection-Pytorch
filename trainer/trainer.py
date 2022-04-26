@@ -69,25 +69,9 @@ class Trainer(BaseTrainer):
         train_log = self.train_metrics.result()
         self.log.update(**{'train_'+k : v for k, v in train_log.items()})
 
-        # add epoch_avg_train_loss into tensorboard
-        try:
-            print(self.log['train_loss'])
-            print(self.log['train_accuracy'])
-        except:
-            print('train_metrics error')
-        #self.writer.add_scalar('epoch_avg_train_loss', self.log['train_loss'])
-
         if self.do_validation:
             val_log = self._valid_epoch(epoch)
             self.log.update(**{'val_'+k : v for k, v in val_log.items()})
-
-            # add epoch_avg_train_loss into tensorboard
-            try:
-                print(self.log['val_loss'])
-                print(self.log['val_accuracy'])
-            except:
-                print('valid_metrics error')
-            #self.writer.add_scalar('epoch_avg_val_loss', self.log['val_loss'])
 
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()

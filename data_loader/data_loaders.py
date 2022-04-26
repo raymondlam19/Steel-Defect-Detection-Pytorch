@@ -8,6 +8,11 @@ import torch
 import torch.utils.data as Data
 from torchvision import transforms
 
+try:
+    from utils import ROOT_DIR
+except:
+    print('testing: data_loaders.py')
+
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
     __getattr__ = dict.get
@@ -19,15 +24,25 @@ class ImageDataset(Data.Dataset):
         """
         Initialize a dataset as a list of IDs corresponding to each item of data set
         Args:
-            root_dir (string): Directory with all the images.
+            img_dir (string): Directory with all the images.
             csv_file (string): filename of the csv file with annotations.
             train_test (string): Input 'train'/'test' to indicate the img folder
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
+        try:
+            root_dir = ROOT_DIR
+        except:
+            root_dir = os.path.join(os.path.dirname(__file__), '..')
+            
+        traincsv_path = os.path.join(root_dir, 'data', 'train_pivot.csv')
+        testcsv_path = os.path.join(root_dir, 'data', 'testset.csv')
+        trainimg_dir = os.path.join(root_dir, 'data', 'train_images')
+        testimg_dir = os.path.join(root_dir, 'data', 'test_images')
+        
         self.train = train
-        self.df = pd.read_csv("./data/train_pivot.csv" if self.train==True else "./data/testset.csv")
-        self.root_dir = os.path.join('./data/', 'train_images/' if self.train==True else 'test_images/')
+        self.df = pd.read_csv(traincsv_path if self.train else testcsv_path)
+        self.img_dir = trainimg_dir if self.train else testimg_dir
 
     def __len__(self):
         """
@@ -46,7 +61,7 @@ class ImageDataset(Data.Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
         # Image
-        img_name = os.path.join(self.root_dir, self.df.loc[idx, 'ImageId'])
+        img_name = os.path.join(self.img_dir, self.df.loc[idx, 'ImageId'])
         image = cv2.imread(img_name)
         
         # Transform image

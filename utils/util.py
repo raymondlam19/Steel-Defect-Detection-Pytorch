@@ -1,3 +1,4 @@
+import os
 import json
 import torch
 import pandas as pd
@@ -5,6 +6,7 @@ from pathlib import Path
 from itertools import repeat
 from collections import OrderedDict
 
+ROOT_DIR = os.path.join(os.path.dirname(__file__), '..')
 
 def ensure_dir(dirname):
     dirname = Path(dirname)
@@ -66,7 +68,7 @@ class MetricTracker:
     def result(self):
         return dict(self._data.average)
 
-if __name__ == '__main__':
+if __name__ == '__main__':    
     log = MetricTracker().result()
     train_metrics = MetricTracker('loss', *['accuracy'])
     valid_metrics = MetricTracker('loss', *['accuracy'])

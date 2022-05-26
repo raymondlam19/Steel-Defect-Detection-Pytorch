@@ -68,7 +68,7 @@ class ImageDataset(Data.Dataset):
         transform = transforms.Compose([
             transforms.ToTensor(),                          # Auto turn to range [0 1] in .ToTensor()
             transforms.Grayscale(num_output_channels=1),    # ToTensor first as .Grayscale() require tensor input
-            transforms.Resize([int(image.shape[0]),int(image.shape[0])]),   # resize make training faster
+            #transforms.Resize([int(image.shape[0]),int(image.shape[0])]),   # resize make training faster
             transforms.RandomRotation(degrees=1),
             #transforms.Normalize(mean=[0.5], std=[0.5])    # Why 0.5? -> We will use BN at the beginning of the model instead
         ])

@@ -3,17 +3,18 @@
     "n_gpu": 1,
 
     "arch": {
-        "type": "CNN",
+        "type": "FirstHalfUNet",
         "args": {
             "in_channels": 1, 
-            "num_classes": 4
+            "out_classes": 4,
+            "resnet": false
         }
     },
     "data_loader": {
         "type": "ImageDataLoader",
         "args":{
             "validation_split": 0.2,
-            "batch_size": 16,
+            "batch_size": 2,
             "shuffle": true
         }
     },

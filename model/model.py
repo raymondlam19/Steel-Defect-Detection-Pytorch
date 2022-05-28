@@ -1,74 +1,116 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from base import BaseModel
 
-# conv_block: Conv => BN => ReLu => (MaxPool)
-def conv_block(in_channels, out_channels, pool=False):
-    layers =    [nn.Conv2d(
-                    in_channels,             # no. of layers of pervious layer
-                    out_channels,            # n_filters
-                    kernel_size=5,           # filter size (3/5)
-                    stride=1,                # filter movement/step
-                    padding=2                # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1 (1/2)
-                ), 
-                nn.BatchNorm2d(num_features=out_channels),   # Normally, num_features = no. of layers of pervious layer
-                nn.ReLU(inplace=True)        # inplace=True to save memory
-                ]
-    if pool: layers.append(nn.MaxPool2d(kernel_size=2, stride=2))   # width/2
-    return nn.Sequential(*layers)
-
-class CNN(BaseModel):        
-    def __init__(self, in_channels, num_classes):
+class DoubleConv(nn.Module):
+    # conv_block: Conv => BN => ReLu => (MaxPool)
+    def conv_block(self, in_channels, out_channels, pool=False):
+        layers =    [nn.Conv2d(
+                        in_channels,             # no. of layers of pervious layer
+                        out_channels,            # n_filters
+                        kernel_size=3,           # filter size (3/5)
+                        stride=1,                # filter movement/step
+                        padding=1                # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1 (1/2)
+                    ), 
+                    nn.BatchNorm2d(num_features=out_channels),   # Normally, num_features = no. of layers of pervious layer
+                    nn.ReLU(inplace=True)        # inplace=True to save memory
+                    ]
+        if pool: layers.append(nn.MaxPool2d(kernel_size=2, stride=2))   # width/2
+        return nn.Sequential(*layers)
+        
+    def __init__(self, in_channels, out_channels, use_resnet=False):
         super().__init__()
-        self.bn_input = nn.BatchNorm2d(1)   # BN for input data first
+        self.use_resnet = use_resnet
+        self.conv1 = self.conv_block(in_channels, out_channels, pool=False)
+        self.conv2 = self.conv_block(out_channels, out_channels, pool=False)
+        self.convRes = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.relu = nn.ReLU(inplace=True)
 
-        self.conv1 = conv_block(in_channels, 32)
-        self.conv2 = conv_block(32, 64, pool=True)
-        self.conv3 = conv_block(64, 128, pool=True)
-        self.conv4 = conv_block(128, 256, pool=True)
-        self.conv5 = conv_block(256, 256, pool=True)
+    def forward(self, x):
+        identity = x
+        x = self.conv1(x)
+        x = self.conv2(x)
+        if self.use_resnet==True:
+            x = self.convRes(identity) + x         # where Resnet happens here
+            x = self.relu(x)
+        return x
+    
+class DownBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, use_resnet=False):
+        super().__init__()
+        self.double_conv = DoubleConv(in_channels, out_channels, use_resnet)
+        self.down_sample = nn.MaxPool2d(2)
 
-        self.linear1 = nn.Linear(256*16*16, 512)   # (256*16*16, 512)
-        #self.bn1 = nn.BatchNorm1d(512)
-        self.linear2 = nn.Linear(512, num_classes)
-        self.bn2 = nn.BatchNorm1d(num_classes)
+    def forward(self, x):
+        skip_out = self.double_conv(x)
+        down_out = self.down_sample(skip_out)
+        return (down_out, skip_out)
 
-        # self.classifier = nn.Sequential(
-        #     nn.Flatten(),
-        #     nn.Linear(512*16*16, 512),     # (512*16*100, 512)
-        #     nn.Dropout(0.2),
-        #     nn.Linear(512, num_classes),
-        #     nn.BatchNorm1d(num_classes),    # BN before activation
-        #     nn.Sigmoid()
-        # )
+class UpBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, up_sample_mode):
+        super().__init__()
+        if up_sample_mode == 'conv_transpose':
+            self.up_sample = nn.ConvTranspose2d(in_channels-out_channels, in_channels-out_channels, kernel_size=2, stride=2)        
+        elif up_sample_mode == 'bilinear':
+            self.up_sample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        else:
+            raise ValueError("Unsupported `up_sample_mode` (can take one of `conv_transpose` or `bilinear`)")
+        self.double_conv = DoubleConv(in_channels, out_channels)
 
-    def forward(self, x):           # (batch_size, 1, 256, 256)
-        x = self.conv1(x)           # (batch_size, 32, 256, 256)
-        x = self.conv2(x)           # (batch_size, 64, 128, 128)
-        x = self.conv3(x)           # (batch_size, 128, 64, 64)
-        x = self.conv4(x)           # (batch_size, 256, 32, 32)
-        x = self.conv5(x)           # (batch_size, 256, 16, 16)
-        x = x.view(x.size(0), -1)   # (batch_size, 256*16*16)   cannot use flatten here which will be (batch_size*256*16*16)
-        x = F.relu(self.linear1(x), inplace=True)
-        out = torch.sigmoid(self.bn2(self.linear2(x)))
-        #out = self.classifier(x)    # (512 * 16 * 100) -> (512) -> (4)
-        return out.float()          # sigmoid [0 1]: return a probabilty of each class
+    def forward(self, down_input, skip_input):
+        x = self.up_sample(down_input)
+        x = torch.cat([x, skip_input], dim=1)
+        return self.double_conv(x)
 
-# class MnistModel(BaseModel):
-#     def __init__(self, num_classes=10):
-#         super().__init__()
-#         self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
-#         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
-#         self.conv2_drop = nn.Dropout2d()
-#         self.fc1 = nn.Linear(320, 50)
-#         self.fc2 = nn.Linear(50, num_classes)
+class FirstHalfUNet(BaseModel):
+    def __init__(self, in_channels, out_classes=4, use_resnet=False):
+        super().__init__()
+        # BN first
+        self.bn_input = nn.BatchNorm2d(1)
+        # Downsampling Path
+        self.down_conv1 = DownBlock(in_channels, 32, use_resnet)
+        self.down_conv2 = DownBlock(32, 64, use_resnet)
+        self.down_conv3 = DownBlock(64, 128, use_resnet)
+        self.down_conv4 = DownBlock(128, 256, use_resnet)
+        # Bottleneck
+        self.double_conv = DoubleConv(256, 512, use_resnet)
+        # Dense Layer
+        self.globalavgpool = nn.AdaptiveAvgPool2d((1,1))
+        self.fc1 = nn.Sequential(
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(inplace=True)
+        )
+        self.fc2 = nn.Sequential(
+            nn.Linear(128, out_classes),
+            nn.BatchNorm1d(out_classes),
+            nn.Sigmoid()
+        )
 
-#     def forward(self, x):
-#         x = F.relu(F.max_pool2d(self.conv1(x), 2))
-#         x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
-#         x = x.view(-1, 320)
-#         x = F.relu(self.fc1(x))
-#         x = F.dropout(x, training=self.training)
-#         x = self.fc2(x)
-#         return F.log_softmax(x, dim=1)
+        # # Upsampling Path
+        # self.up_sample_mode = up_sample_mode
+        # self.up_conv4 = UpBlock(512 + 1024, 512, self.up_sample_mode)
+        # self.up_conv3 = UpBlock(256 + 512, 256, self.up_sample_mode)
+        # self.up_conv2 = UpBlock(128 + 256, 128, self.up_sample_mode)
+        # self.up_conv1 = UpBlock(128 + 64, 64, self.up_sample_mode)
+        # # Final Convolution
+        # self.conv_last = nn.Conv2d(64, out_classes, kernel_size=1)
+
+    def forward(self, x):
+        x = self.bn_input(x)            # (batch_size,  1, 256, 1600)
+        x, _ = self.down_conv1(x)       # (batch_size, 32, 128, 800)
+        x, _ = self.down_conv2(x)       # (batch_size, 64, 64, 400)
+        x, _ = self.down_conv3(x)       # (batch_size, 128, 32, 200)
+        x, _ = self.down_conv4(x)       # (batch_size, 256, 16, 100)
+        x = self.double_conv(x)         # (batch_size, 512, 16, 100)
+        x = self.globalavgpool(x)       # (batch_size, 512, 1, 1)
+        x = x.view(x.size(0), -1)       # (batch_size, 512)   cannot use flatten here which will be (batch_size*256*16*16)
+        x = self.fc1(x)                 # (batch_size, 128)
+        x = self.fc2(x)                 # (batch_size, 4)
+        return x.float()                # sigmoid [0 1]: return a probabilty of each class
+        # x = self.up_conv4(x, skip4_out)
+        # x = self.up_conv3(x, skip3_out)
+        # x = self.up_conv2(x, skip2_out)
+        # x = self.up_conv1(x, skip1_out)
+        # x = self.conv_last(x)
+        # return x

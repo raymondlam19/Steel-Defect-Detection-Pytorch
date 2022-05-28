@@ -18,9 +18,9 @@ class DoubleConv(nn.Module):
         if pool: layers.append(nn.MaxPool2d(kernel_size=2, stride=2))   # width/2
         return nn.Sequential(*layers)
         
-    def __init__(self, in_channels, out_channels, resnet=False):
+    def __init__(self, in_channels, out_channels, use_resnet=False):
         super().__init__()
-        self.resnet = resnet
+        self.use_resnet = use_resnet
         self.conv1 = self.conv_block(in_channels, out_channels, pool=False)
         self.conv2 = self.conv_block(out_channels, out_channels, pool=False)
         self.convRes = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
@@ -30,15 +30,15 @@ class DoubleConv(nn.Module):
         identity = x
         x = self.conv1(x)
         x = self.conv2(x)
-        if self.resnet==True:
+        if self.use_resnet==True:
             x = self.convRes(identity) + x         # where Resnet happens here
             x = self.relu(x)
         return x
     
 class DownBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, resnet=False):
+    def __init__(self, in_channels, out_channels, use_resnet=False):
         super().__init__()
-        self.double_conv = DoubleConv(in_channels, out_channels, resnet)
+        self.double_conv = DoubleConv(in_channels, out_channels, use_resnet)
         self.down_sample = nn.MaxPool2d(2)
 
     def forward(self, x):
@@ -63,25 +63,26 @@ class UpBlock(nn.Module):
         return self.double_conv(x)
 
 class FirstHalfUNet(BaseModel):
-    def __init__(self, in_channels, out_classes=4, resnet=False):
+    def __init__(self, in_channels, out_classes=4, use_resnet=False):
         super().__init__()
         # BN first
         self.bn_input = nn.BatchNorm2d(1)
         # Downsampling Path
-        self.down_conv1 = DownBlock(in_channels, 16, resnet)
-        self.down_conv2 = DownBlock(16, 32, resnet)
-        self.down_conv3 = DownBlock(32, 64, resnet)
-        self.down_conv4 = DownBlock(64, 128, resnet)
+        self.down_conv1 = DownBlock(in_channels, 32, use_resnet)
+        self.down_conv2 = DownBlock(32, 64, use_resnet)
+        self.down_conv3 = DownBlock(64, 128, use_resnet)
+        self.down_conv4 = DownBlock(128, 256, use_resnet)
         # Bottleneck
-        self.double_conv = DoubleConv(128, 256, resnet)
+        self.double_conv = DoubleConv(256, 512, use_resnet)
         # Dense Layer
+        self.globalavgpool = nn.AdaptiveAvgPool2d((1,1))
         self.fc1 = nn.Sequential(
-            nn.Linear(256*16*100, 1024),
-            nn.BatchNorm1d(1024),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
             nn.ReLU(inplace=True)
         )
         self.fc2 = nn.Sequential(
-            nn.Linear(1024, out_classes),
+            nn.Linear(128, out_classes),
             nn.BatchNorm1d(out_classes),
             nn.Sigmoid()
         )
@@ -97,15 +98,16 @@ class FirstHalfUNet(BaseModel):
 
     def forward(self, x):
         x = self.bn_input(x)            # (batch_size,  1, 256, 1600)
-        x, _ = self.down_conv1(x)       # (batch_size, 64, 128, 800)
-        x, _ = self.down_conv2(x)       # (batch_size, 128, 64, 400)
-        x, _ = self.down_conv3(x)       # (batch_size, 256, 32, 200)
-        x, _ = self.down_conv4(x)       # (batch_size, 512, 16, 100)
-        x = self.double_conv(x)         # (batch_size, 1024, 16, 100)
-        x = x.view(x.size(0), -1)       # (batch_size, 1024*16*100)   cannot use flatten here which will be (batch_size*256*16*16)
-        x = self.fc1(x)                 # (batch_size, 1024)
-        out = self.fc2(x)               # (batch_size, 4)
-        return out.float()              # sigmoid [0 1]: return a probabilty of each class
+        x, _ = self.down_conv1(x)       # (batch_size, 32, 128, 800)
+        x, _ = self.down_conv2(x)       # (batch_size, 64, 64, 400)
+        x, _ = self.down_conv3(x)       # (batch_size, 128, 32, 200)
+        x, _ = self.down_conv4(x)       # (batch_size, 256, 16, 100)
+        x = self.double_conv(x)         # (batch_size, 512, 16, 100)
+        x = self.globalavgpool(x)       # (batch_size, 512, 1, 1)
+        x = x.view(x.size(0), -1)       # (batch_size, 512)   cannot use flatten here which will be (batch_size*256*16*16)
+        x = self.fc1(x)                 # (batch_size, 128)
+        x = self.fc2(x)                 # (batch_size, 4)
+        return x.float()                # sigmoid [0 1]: return a probabilty of each class
         # x = self.up_conv4(x, skip4_out)
         # x = self.up_conv3(x, skip3_out)
         # x = self.up_conv2(x, skip2_out)

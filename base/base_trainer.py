@@ -5,6 +5,7 @@ from logger import TensorboardWriter
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+import re
 
 
 class BaseTrainer:
@@ -39,6 +40,7 @@ class BaseTrainer:
                 self.early_stop = inf
 
         self.start_epoch = 1
+        self.history = []
 
         self.checkpoint_dir = config.save_dir
         self.log_dir = config.log_dir
@@ -48,6 +50,7 @@ class BaseTrainer:
 
         if config.resume is not None:
             self._resume_checkpoint(config.resume)
+        
 
     @abstractmethod
     def _train_epoch(self, epoch):
@@ -63,7 +66,6 @@ class BaseTrainer:
         Full training logic
         """
         not_improved_count = 0
-        history = []
 
         for epoch in range(self.start_epoch, self.epochs + 1):
             result = self._train_epoch(epoch)
@@ -73,7 +75,7 @@ class BaseTrainer:
             log.update(result)
 
             # save history csv
-            history.append(log)
+            self.history.append(log)
 
             # print logged informations to the screen
             for key, value in log.items():
@@ -108,7 +110,7 @@ class BaseTrainer:
                 self._save_checkpoint(epoch, save_best=best)
             
         # save history into a csv at the end of the last epoch
-        df_history =  pd.DataFrame(history)
+        df_history =  pd.DataFrame(self.history)
         df_history.to_csv(os.path.join(self.log_dir, 'history.csv'), index=False)
         print('Saved History csv')
 
@@ -189,3 +191,8 @@ class BaseTrainer:
             self.optimizer.load_state_dict(checkpoint['optimizer'])
 
         self.logger.info("Checkpoint loaded. Resume training from epoch {}".format(self.start_epoch))
+
+        # load df_history
+        ver = re.findall(r'\d+_\d+', resume_path)[0]
+        self.history = pd.read_csv(os.path.join(f'./saved/log/Steel_Defect_Detection/{ver}', 'history.csv')).to_dict('records')
+        self.logger.info("df_history loaded.")

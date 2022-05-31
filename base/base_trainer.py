@@ -122,8 +122,7 @@ class BaseTrainer:
             Plot train_loss, val_loss, val_acc every epoch end
         '''
         num_plots = len(self.metric_ftns)+1
-        
-        plt.ion()
+
         fig, axs = plt.subplots(num_plots,1, figsize=(12,10))
         axs[0].set_title("train_loss vs val_loss")
         axs[0].plot(history['epoch'], history['train_loss'])

@@ -2,13 +2,17 @@
     "name": "Steel_Defect_Detection",
     "n_gpu": 1,
 
-    "arch": {
+    "_arch": {
         "type": "FirstHalfUNet",
-        "_type": "UNet",
         "args": {
             "in_channels": 1, 
             "out_classes": 4,
-            "resnet": true,
+            "use_resnet": true
+        }
+    },
+    "arch": {
+        "type": "UNet",
+        "args": {
             "up_sample_mode": "conv_transpose",
             "load_ver": "0530_225114"
         }

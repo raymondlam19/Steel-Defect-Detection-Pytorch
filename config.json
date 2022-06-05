@@ -4,10 +4,13 @@
 
     "arch": {
         "type": "FirstHalfUNet",
+        "_type": "UNet",
         "args": {
             "in_channels": 1, 
             "out_classes": 4,
-            "resnet": false
+            "resnet": true,
+            "up_sample_mode": "conv_transpose",
+            "load_ver": "0530_225114"
         }
     },
     "data_loader": {

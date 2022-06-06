@@ -21,7 +21,7 @@
         "type": "ImageDataLoader",
         "args":{
             "validation_split": 0.2,
-            "batch_size": 2,
+            "batch_size": 8,
             "shuffle": true
         }
     },

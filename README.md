@@ -179,7 +179,7 @@ Modify the configurations in `.json` config files, then run:
 You can resume from a previously saved checkpoint by:
 
   ```
-  python train.py --resume path/to/checkpoint
+  python train.py --resume=path/to/checkpoint --epochs=41
   ```
 
 ### Using Multiple GPU

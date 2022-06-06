@@ -7,6 +7,7 @@ import pandas as pd
 import torch
 import torch.utils.data as Data
 from torchvision import transforms
+from torchvision.transforms import functional as TF
 
 try:
     from utils import ROOT_DIR
@@ -20,6 +21,34 @@ class dotdict(dict):
     __delattr__ = dict.__delitem__
 
 class ImageDataset(Data.Dataset):
+    def rle2mask(self, rle, imgshape = (256,1600)):
+        width = imgshape[0]
+        height= imgshape[1]
+        
+        mask= np.zeros( width*height ).astype(np.uint8)
+        
+        array = np.asarray([int(x) for x in rle.split()])
+        starts = array[0::2]
+        lengths = array[1::2]
+
+        current_position = 0
+        for index, start in enumerate(starts):
+            mask[int(start):int(start+lengths[index])] = 1
+            current_position += lengths[index]
+            
+        return np.flipud( np.rot90( mask.reshape(height, width), k=1 ) )
+
+    def build_mask(self, rles, input_shape = (256,1600)):
+        depth = len(rles)
+        height, width = input_shape
+        masks = np.zeros((height, width, depth))
+        
+        for i, rle in enumerate(rles):
+            if type(rle) is str:
+                masks[:, :, i] = self.rle2mask(rle, (height, width))
+        
+        return masks
+
     def __init__(self, train=True):
         """
         Initialize a dataset as a list of IDs corresponding to each item of data set
@@ -35,7 +64,7 @@ class ImageDataset(Data.Dataset):
         except:
             root_dir = os.path.join(os.path.dirname(__file__), '..')
             
-        traincsv_path = os.path.join(root_dir, 'data', 'train_pivot.csv')
+        traincsv_path = os.path.join(root_dir, 'data', 'train_rle_pivot.csv')
         testcsv_path = os.path.join(root_dir, 'data', 'testset.csv')
         trainimg_dir = os.path.join(root_dir, 'data', 'train_images')
         testimg_dir = os.path.join(root_dir, 'data', 'test_images')
@@ -51,6 +80,26 @@ class ImageDataset(Data.Dataset):
         """
         return self.df.shape[0]
 
+    def transform(self, image, mask):
+        # To tensor (image, mask)
+        image = TF.to_tensor(image) #Before tensor: (256, 1600, 3)
+        mask = TF.to_tensor(mask)   #After tensor: (3, 256, 1600)
+        
+        # # Resize (image, mask)
+        # resize = transforms.Resize(size=(int(image.shape[0]), int(image.shape[0])))
+        # image = resize(image)
+        # mask = resize(mask)
+
+        # Grayscale (image)
+        image = TF.rgb_to_grayscale(image, num_output_channels=1)   #After grayscale: (1, 256, 1600)
+
+        # RandomRotation (image, mask)
+        angle = transforms.RandomRotation(degrees=1).get_params(degrees=[-1,1])
+        image = TF.rotate(image, angle)
+        mask = TF.rotate(mask, angle)
+        
+        return image, mask
+    
     def __getitem__(self, idx):
         """
         Generate one item of data set.
@@ -63,28 +112,24 @@ class ImageDataset(Data.Dataset):
         # Image
         img_name = os.path.join(self.img_dir, self.df.loc[idx, 'ImageId'])
         image = cv2.imread(img_name)
-        
-        # Transform image
-        transform = transforms.Compose([
-            transforms.ToTensor(),                          # Auto turn to range [0 1] in .ToTensor()
-            transforms.Grayscale(num_output_channels=1),    # ToTensor first as .Grayscale() require tensor input
-            #transforms.Resize([int(image.shape[0]),int(image.shape[0])]),   # resize make training faster
-            transforms.RandomRotation(degrees=1),
-            #transforms.Normalize(mean=[0.5], std=[0.5])    # Why 0.5? -> We will use BN at the beginning of the model instead
-        ])
-        
         # Label
-        label = self.df.iloc[idx, 1:].values.astype(float)
+        label = self.df.iloc[idx, 1:].notnull().values.astype(float)
+        # mask
+        rles = self.df.iloc[idx, 1:].values
+        mask = self.build_mask(rles)
+
+        image, mask = self.transform(image, mask)
         
         if self.train:
             sample = {
-                'image': transform(image),              # (1, 256, 1600), do not squeeze here as conv layer require 3D input
-                'label': torch.tensor(label).float()    # sync label to float (pred from model will be make into float as well)
+                'image': image,                 # (1, 256, 1600), do not squeeze here as conv layer require 3D input
+                'label': torch.tensor(label),
+                'mask': mask                    # (4, 256, 1600)
             }       
         else:
             sample = {
                 'ImageId': self.df.loc[idx, 'ImageId'],
-                'image': transform(image)
+                'image': image
             }
         return dotdict(sample)
 
@@ -114,7 +159,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from torch.autograd import Variable
 
-    dl = ImageDataLoader(validation_split=0.2, batch_size=16, shuffle=True)
+    dl = ImageDataLoader(validation_split=0.2, batch_size=8, shuffle=True)
     train_loader = dl.train_loader
     print(f"Train set length: {len(train_loader.dataset)}")
     print(f"Total training steps in an epoch: {len(train_loader)}\n")
@@ -128,43 +173,39 @@ if __name__ == '__main__':
     print(f"Total testing steps in an epoch: {len(test_loader)}\n")
 
     # Show a sample image with its label (train_loader)
-    # for step, data in enumerate(train_loader):
-    #     b_x = Variable(data['image'])
-    #     b_y = Variable(data['label'])
+    for step, data in enumerate(train_loader):
+        images = Variable(data['image'])
+        labels = Variable(data['label'])
+        masks = Variable(data['mask'])
 
-    #     plt.figure(figsize=(12,4))
-    #     plt.axis('off')
-    #     plt.imshow(b_x[0].detach().numpy().squeeze()) # Always use .detach() instead of .data which will be expired
-    #     plt.show()
-    #     print(b_y[0].detach().numpy())
-    #     break
+        image = images[0].detach().numpy()
+        label = labels[0].detach().numpy()
+        mask = masks[0].detach().numpy()   
+
+        plt.figure(figsize=(12,12))
+        plt.subplot(511)
+        plt.axis('off')
+        plt.title(f'image: {image.shape}, label: {label}')
+        plt.imshow(image.squeeze()) # Always use .detach() instead of .data which will be expired
+        for i in range(mask.shape[0]):
+            plt.subplot(512+i)
+            plt.title(f'mask{i+1}: {mask.shape}')
+            plt.imshow(mask[i].squeeze())
+            plt.axis('off')
+        plt.show()
+        break
     
     # test_loader
     for step, data in enumerate(test_loader):
         imgids = data['ImageId']
         images = Variable(data['image'])
 
+        imgid = imgids[0]
+        image = images[0].detach().numpy()
+
         plt.figure(figsize=(12,4))
         plt.axis('off')
-        plt.title(imgids[0])
-        plt.imshow(images[0].detach().numpy().squeeze()) # Always use .detach() instead of .data which will be expired
+        plt.title(f'{imgid}: {image.shape}')
+        plt.imshow(image.squeeze()) # Always use .detach() instead of .data which will be expired
         plt.show()
         break
-
-
-# from torchvision import datasets, transforms
-# from base import BaseDataLoader
-
-
-# class MnistDataLoader(BaseDataLoader):
-#     """
-#     MNIST data loading demo using BaseDataLoader
-#     """
-#     def __init__(self, data_dir, batch_size, shuffle=True, validation_split=0.0, num_workers=1, training=True):
-#         trsfm = transforms.Compose([
-#             transforms.ToTensor(),
-#             transforms.Normalize((0.1307,), (0.3081,))
-#         ])
-#         self.data_dir = data_dir
-#         self.dataset = datasets.MNIST(self.data_dir, train=training, download=True, transform=trsfm)
-#         super().__init__(self.dataset, batch_size, shuffle, validation_split, num_workers)

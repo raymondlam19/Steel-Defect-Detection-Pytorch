@@ -43,8 +43,12 @@ class Trainer(BaseTrainer):
         self.model.train()
         self.train_metrics.reset()
         for batch_idx, batch in enumerate(self.train_loader):
-            data = Variable(batch['image']).to(self.device)
-            target = Variable(batch['label']).to(self.device)
+            if self.model.__class__.__name__ == 'FirstHalfUNet':
+                data = Variable(batch['image']).to(self.device)
+                target = Variable(batch['label']).to(self.device)
+            else:
+                data = Variable(batch['image']).to(self.device)
+                target = Variable(batch['mask']).to(self.device)
 
             self.optimizer.zero_grad()
             output = self.model(data)
@@ -88,8 +92,12 @@ class Trainer(BaseTrainer):
         self.valid_metrics.reset()
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(self.val_loader)):
-                data = Variable(batch['image']).to(self.device)
-                target = Variable(batch['label']).to(self.device)
+                if self.model.__class__.__name__ == 'FirstHalfUNet':
+                    data = Variable(batch['image']).to(self.device)
+                    target = Variable(batch['label']).to(self.device)
+                else:
+                    data = Variable(batch['image']).to(self.device)
+                    target = Variable(batch['mask']).to(self.device)
 
                 output = self.model(data)
                 loss = self.criterion(output, target)

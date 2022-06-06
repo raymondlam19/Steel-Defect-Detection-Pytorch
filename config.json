@@ -2,12 +2,19 @@
     "name": "Steel_Defect_Detection",
     "n_gpu": 1,
 
-    "arch": {
+    "_arch": {
         "type": "FirstHalfUNet",
         "args": {
             "in_channels": 1, 
             "out_classes": 4,
             "use_resnet": true
+        }
+    },
+    "arch": {
+        "type": "UNet",
+        "args": {
+            "up_sample_mode": "conv_transpose",
+            "load_ver": "0530_225114"
         }
     },
     "data_loader": {
@@ -27,8 +34,11 @@
         }
     },
     "loss": "binary_cross_entropy",
-    "metrics": [
+    "_metrics": [
         "accuracy"
+    ],
+    "metrics": [
+        "iou"
     ],
     "lr_scheduler": {
         "type": "StepLR",
@@ -38,7 +48,7 @@
         }
     },
     "trainer": {
-        "epochs": 30,
+        "epochs": 40,
 
         "save_dir": "saved/",
         "save_period": 1,

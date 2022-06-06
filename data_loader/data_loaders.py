@@ -122,9 +122,9 @@ class ImageDataset(Data.Dataset):
         
         if self.train:
             sample = {
-                'image': image,     # (1, 256, 1600), do not squeeze here as conv layer require 3D input
-                'label': label,
-                'mask': mask        # (4, 256, 1600)
+                'image': image,                 # (1, 256, 1600), do not squeeze here as conv layer require 3D input
+                'label': torch.tensor(label),
+                'mask': mask                    # (4, 256, 1600)
             }       
         else:
             sample = {

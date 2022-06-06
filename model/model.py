@@ -88,7 +88,7 @@ class FirstHalfUNet(BaseModel):
         x = x.view(x.size(0), -1)       # (batch_size, 512)   cannot use flatten here which will be (batch_size*256*16*16)
         x = self.fc1(x)                 # (batch_size, 128)
         x = self.fc2(x)                 # (batch_size, 4)
-        return x.float()                # sigmoid [0 1]: return a probabilty of each class
+        return x                        # sigmoid [0 1]: return a probabilty of each class
 
 class UpBlock(nn.Module):
     def __init__(self, in_channels, out_channels, use_resnet, up_sample_mode='conv_transpose'):

@@ -34,8 +34,11 @@
         }
     },
     "loss": "binary_cross_entropy",
-    "metrics": [
+    "_metrics": [
         "accuracy"
+    ],
+    "metrics": [
+        "iou"
     ],
     "lr_scheduler": {
         "type": "StepLR",

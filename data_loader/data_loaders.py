@@ -92,13 +92,13 @@ class ImageDataset(Data.Dataset):
 
         # Grayscale (image)
         image = TF.rgb_to_grayscale(image, num_output_channels=1)   #After grayscale: (1, 256, 1600)
-
+        
         # RandomRotation (image, mask)
         angle = transforms.RandomRotation(degrees=1).get_params(degrees=[-1,1])
-        image = TF.rotate(image, angle)
-        mask = TF.rotate(mask, angle)
+        image_rotated = TF.rotate(image, angle)
+        mask_rotated = TF.rotate(mask, angle)
         
-        return image, mask
+        return image_rotated, image, mask_rotated
     
     def __getitem__(self, idx):
         """
@@ -118,13 +118,13 @@ class ImageDataset(Data.Dataset):
         rles = self.df.iloc[idx, 1:].values
         mask = self.build_mask(rles)
 
-        image, mask = self.transform(image, mask)
+        image_rotated, image, mask_rotated = self.transform(image, mask)
         
         if self.train:
             sample = {
-                'image': image,                 # (1, 256, 1600), do not squeeze here as conv layer require 3D input
+                'image': image_rotated,           # (1, 256, 1600), do not squeeze here as conv layer require 3D input
                 'label': torch.tensor(label),
-                'mask': mask                    # (4, 256, 1600)
+                'mask': mask_rotated                    # (4, 256, 1600)
             }       
         else:
             sample = {

@@ -109,10 +109,10 @@ class BaseTrainer:
             if epoch % self.save_period == 0:
                 self._save_checkpoint(epoch, save_best=best)
             
-        # save history into a csv at the end of the last epoch
-        df_history =  pd.DataFrame(self.history)
-        df_history.to_csv(os.path.join(self.log_dir, 'history.csv'), index=False)
-        print('Saved History csv')
+            # save history into a csv at the end of the last epoch
+            df_history =  pd.DataFrame(self.history)
+            df_history.to_csv(os.path.join(self.log_dir, 'history.csv'), index=False)
+            print('Saved History csv')
 
         # draw loss & metric at the end of training
         self._draw_loss_metric(df_history)

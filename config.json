@@ -14,7 +14,7 @@
         "type": "UNet",
         "args": {
             "up_sample_mode": "conv_transpose",
-            "load_ver": "0530_225114"
+            "load_ver": "0529_091215"
         }
     },
     "data_loader": {

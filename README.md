@@ -168,18 +168,24 @@ Config files are in `.json` format:
 
 Add addional configurations if you need.
 
-### Using config files
+### Training: Using config files to start a new training
 Modify the configurations in `.json` config files, then run:
 
   ```
   python train.py --config config.json
   ```
 
-### Resuming from checkpoints
+### Training: Resuming from checkpoints
 You can resume from a previously saved checkpoint by:
 
   ```
   python train.py --resume=path/to/checkpoint --epochs=41
+  ```
+### Testing: Resuming from checkpoints
+Predict the testset and return a prediction csv (testset_output.csv) in /data/
+
+  ```
+  python test.py --resume=path/to/checkpoint
   ```
 
 ### Using Multiple GPU

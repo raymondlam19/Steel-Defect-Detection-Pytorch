@@ -111,6 +111,5 @@ saved/
 datasets/
 
 # editor, os cache directory
-.vscode/
 .idea/
 __MACOSX/

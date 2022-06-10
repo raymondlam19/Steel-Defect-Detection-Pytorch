@@ -1,0 +1,19 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": ["--e=50", "-r=saved/models/Steel_Defect_Detection/0529_091215/checkpoint-epoch40.pth"],
+            //"args": ["-r=saved/models/Steel_Defect_Detection/0606_234507/checkpoint-epoch9.pth"],
+            "env": {"PYTHONPATH": "${workspaceFolder}"}
+        }
+    ]
+}

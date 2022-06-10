@@ -10,19 +10,10 @@ from torch.autograd import Variable
 import numpy as np
 import pandas as pd
 
+from utils import build_rles
 
 def main(config):
     logger = config.get_logger('test')
-
-    # setup data_loader instances
-    # data_loader = getattr(module_data, config['data_loader']['type'])(
-    #     config['data_loader']['args']['data_dir'],
-    #     batch_size=512,
-    #     shuffle=False,
-    #     validation_split=0.0,
-    #     training=False,
-    #     num_workers=2
-    # )
 
     data_loader = config.init_obj('data_loader', module_data)
     test_loader = data_loader.test_loader
@@ -42,33 +33,39 @@ def main(config):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
     
-    testset_imgids = []
-    testset_preds = []
+    df_out = pd.DataFrame()
+    # df_out = pd.DataFrame({
+    #     'ImageId': pd.Series(dtype='str'),
+    #     '1': pd.Series(dtype='str'),
+    #     '2': pd.Series(dtype='str'),
+    #     '3': pd.Series(dtype='str'),
+    #     '4': pd.Series(dtype='str')})
 
     model.eval()
     with torch.no_grad():
-        for batch_idx, data in enumerate(tqdm(test_loader)):
+        for i, data in enumerate(tqdm(test_loader)):
             imgids = data['ImageId']
             images = Variable(data['image']).to(device)
             preds_prob = model(images)
             preds = (preds_prob>0.5).float()
+            preds = preds.detach().cpu().numpy()
+            
+            pred_rle_1 = build_rles(preds[:, 0, :, :])
+            pred_rle_2 = build_rles(preds[:, 1, :, :])
+            pred_rle_3 = build_rles(preds[:, 2, :, :])
+            pred_rle_4 = build_rles(preds[:, 3, :, :])
 
-            testset_imgids.extend(imgids)
-            testset_preds.extend(preds.cpu().detach().tolist())
+            df = pd.DataFrame({
+                'ImageId': imgids,
+                '1': pred_rle_1,
+                '2': pred_rle_2,
+                '3': pred_rle_3,
+                '4': pred_rle_4})
 
-    testset_imgids = np.array(testset_imgids)
-    testset_preds = np.array(testset_preds)
-
-    #overwrite the testset.csv
-    testset_output = pd.DataFrame({
-        'ImageId': testset_imgids,
-        '1': testset_preds[:,0],
-        '2': testset_preds[:,1],
-        '3': testset_preds[:,2],
-        '4': testset_preds[:,3]
-    })
-    testset_output.to_csv('data/testset_output.csv', index=False)
-    print('Saved testset_output.csv')
+            df_out = pd.concat([df_out, df], axis=0, ignore_index=True)
+    
+    df_out.to_csv('data/testset_rle_output.csv', index=False)
+    print('Saved testset_rle_output.csv')
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser(description='PyTorch Template')

@@ -9,10 +9,7 @@ import torch.utils.data as Data
 from torchvision import transforms
 from torchvision.transforms import functional as TF
 
-try:
-    from utils import ROOT_DIR
-except:
-    print('testing: data_loaders.py')
+from utils import ROOT_DIR, build_mask
 
 class dotdict(dict):
     """dot.notation access to dictionary attributes"""
@@ -21,34 +18,6 @@ class dotdict(dict):
     __delattr__ = dict.__delitem__
 
 class ImageDataset(Data.Dataset):
-    def rle2mask(self, rle, imgshape = (256,1600)):
-        width = imgshape[0]
-        height= imgshape[1]
-        
-        mask= np.zeros( width*height ).astype(np.uint8)
-        
-        array = np.asarray([int(x) for x in rle.split()])
-        starts = array[0::2]
-        lengths = array[1::2]
-
-        current_position = 0
-        for index, start in enumerate(starts):
-            mask[int(start):int(start+lengths[index])] = 1
-            current_position += lengths[index]
-            
-        return np.flipud( np.rot90( mask.reshape(height, width), k=1 ) )
-
-    def build_mask(self, rles, input_shape = (256,1600)):
-        depth = len(rles)
-        height, width = input_shape
-        masks = np.zeros((height, width, depth))
-        
-        for i, rle in enumerate(rles):
-            if type(rle) is str:
-                masks[:, :, i] = self.rle2mask(rle, (height, width))
-        
-        return masks
-
     def __init__(self, train=True):
         """
         Initialize a dataset as a list of IDs corresponding to each item of data set
@@ -59,10 +28,8 @@ class ImageDataset(Data.Dataset):
             transform (callable, optional): Optional transform to be applied
                 on a sample.
         """
-        try:
-            root_dir = ROOT_DIR
-        except:
-            root_dir = os.path.join(os.path.dirname(__file__), '..')
+
+        root_dir = ROOT_DIR
             
         traincsv_path = os.path.join(root_dir, 'data', 'train_rle_pivot.csv')
         testcsv_path = os.path.join(root_dir, 'data', 'testset.csv')
@@ -116,7 +83,7 @@ class ImageDataset(Data.Dataset):
         label = self.df.iloc[idx, 1:].notnull().values.astype(float)
         # mask
         rles = self.df.iloc[idx, 1:].values
-        mask = self.build_mask(rles)
+        mask = build_mask(rles)
 
         image_rotated, image, mask_rotated = self.transform(image, mask)
         

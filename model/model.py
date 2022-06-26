@@ -171,8 +171,10 @@ class UNet(BaseModel):
         x = self.up_conv2(x, skip2_out)         # (batch_size, 64, 128, 800)
         x = self.up_conv1(x, skip1_out)         # (batch_size, 32, 256, 1600)
         x = self.conv_last(x)                   # (batch_size, 4, 256, 1600)
-        x = self.sigmoid(x)
-        return x
+        mask_pred = self.sigmoid(x)
+        label_pred = mask_pred.sum(-1).sum(-1)>1000     # (batch_size, 4)
+        del x
+        return mask_pred, label_pred.float()
 
 if __name__ == '__main__':
     model = UNet(in_channels=1, out_classes=4, use_resnet=False, up_sample_mode='conv_transpose', load_ver=None)    #load_ver='0530_225114'

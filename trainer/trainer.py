@@ -117,20 +117,30 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(self.val_loader)):
                 if self.model.__class__.__name__ == 'FirstHalfUNet':
-                    data = Variable(batch['image']).to(self.device)
-                    target = Variable(batch['label']).to(self.device)
-                else:
-                    data = Variable(batch['image']).to(self.device)
-                    target = Variable(batch['mask']).to(self.device)
+                    img = Variable(batch['image']).to(self.device)
+                    label_tl = Variable(batch['label']).to(self.device)
 
-                output = self.model(data)
-                loss = self.criterion(output, target)
+                    label_pred = self.model(img)
+                    loss = self.criterion(label_pred, label_tl)
+                else:
+                    img = Variable(batch['image']).to(self.device)
+                    label_tl = Variable(batch['label']).to(self.device)
+                    mask_tl = Variable(batch['mask']).to(self.device)
+
+                    mask_pred, label_pred = self.model(img)
+                    loss_mask = self.criterion(mask_pred, mask_tl)
+                    loss_label = self.criterion(label_pred, label_tl)
+                    loss = loss_mask + loss_label
 
                 self.writer.set_step((epoch - 1) * len(self.val_loader) + batch_idx, 'valid')
                 self.valid_metrics.update('loss', loss.item())
-                for met in self.metric_ftns:
-                    self.valid_metrics.update(met.__name__, met(output, target))
-                self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
+                if self.model.__class__.__name__ == 'UNet':
+                    self.valid_metrics.update('loss_mask', loss_mask.item())
+                    self.valid_metrics.update('loss_label', loss_label.item())
+                    self.valid_metrics.update('iou', self.metric_ftns['iou'](label_pred, label_tl))           
+                self.valid_metrics.update('accuracy', self.metric_ftns['accuracy'](label_pred, label_tl))
+
+                self.writer.add_image('input', make_grid(img.cpu(), nrow=8, normalize=True))
 
         # add histogram of model parameters to the tensorboard
         for name, p in self.model.named_parameters():

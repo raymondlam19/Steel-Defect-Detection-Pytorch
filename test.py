@@ -42,7 +42,10 @@ def main(config):
         for i, data in enumerate(tqdm(test_loader)):
             imgids = data['ImageId']
             images = Variable(data['image']).to(device)
-            preds_prob = model(images)
+            if checkpoint['arch']=="FirstHalfUNet":
+                preds_prob = model(images)
+            else:
+                preds_prob, _ = model(images)
             preds = (preds_prob>0.5).float()
             preds = preds.detach().cpu().numpy()
             

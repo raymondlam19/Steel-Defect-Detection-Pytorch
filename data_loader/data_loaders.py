@@ -18,7 +18,7 @@ class dotdict(dict):
     __delattr__ = dict.__delitem__
 
 class ImageDataset(Data.Dataset):
-    def __init__(self, train=True):
+    def __init__(self, include_null, train=True):
         """
         Initialize a dataset as a list of IDs corresponding to each item of data set
         Args:
@@ -38,6 +38,8 @@ class ImageDataset(Data.Dataset):
         
         self.train = train
         self.df = pd.read_csv(traincsv_path if self.train else testcsv_path)
+        if self.train==True and include_null==False:
+            self.df = self.df[self.df[['1','2','3','4']].notnull().sum(axis=1)>0].reset_index(drop=True)
         self.img_dir = trainimg_dir if self.train else testimg_dir
 
     def __len__(self):
@@ -101,10 +103,10 @@ class ImageDataset(Data.Dataset):
         return dotdict(sample)
 
 class ImageDataLoader(Data.DataLoader):
-    def __init__(self, validation_split, batch_size, shuffle=True):
-        self.dataset = ImageDataset(train=True)
+    def __init__(self, include_null, validation_split, batch_size, shuffle=True):
+        self.dataset = ImageDataset(include_null, train=True)
         self.train_dataset, self.val_dataset = Data.random_split(self.dataset, [int(len(self.dataset)*(1-validation_split)), len(self.dataset)-int(len(self.dataset)*(1-validation_split))])
-        self.test_dataset = ImageDataset(train=False)
+        self.test_dataset = ImageDataset(include_null=True, train=False)
 
         self.train_loader = Data.DataLoader(
             self.train_dataset,
@@ -126,7 +128,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from torch.autograd import Variable
 
-    dl = ImageDataLoader(validation_split=0.2, batch_size=8, shuffle=True)
+    dl = ImageDataLoader(include_null=False, validation_split=0.2, batch_size=8, shuffle=True)
     train_loader = dl.train_loader
     print(f"Train set length: {len(train_loader.dataset)}")
     print(f"Total training steps in an epoch: {len(train_loader)}\n")
@@ -153,7 +155,7 @@ if __name__ == '__main__':
         plt.subplot(511)
         plt.axis('off')
         plt.title(f'image: {image.shape}, label: {label}')
-        plt.imshow(image.squeeze()) # Always use .detach() instead of .data which will be expired
+        plt.imshow(image.squeeze())
         for i in range(mask.shape[0]):
             plt.subplot(512+i)
             plt.title(f'mask{i+1}: {mask.shape}')
@@ -173,6 +175,6 @@ if __name__ == '__main__':
         plt.figure(figsize=(12,4))
         plt.axis('off')
         plt.title(f'{imgid}: {image.shape}')
-        plt.imshow(image.squeeze()) # Always use .detach() instead of .data which will be expired
+        plt.imshow(image.squeeze())
         plt.show()
         break

@@ -172,7 +172,7 @@ class UNet(BaseModel):
         x = self.up_conv1(x, skip1_out)         # (batch_size, 32, 256, 1600)
         x = self.conv_last(x)                   # (batch_size, 4, 256, 1600)
         mask_pred = self.sigmoid(x)
-        label_pred = mask_pred.sum(-1).sum(-1)>1000     # (batch_size, 4)
+        label_pred = mask_pred.sum(-1).sum(-1)>=115     # (batch_size, 4)   # 115 is referenced from the min of mask.sum() in training set
         del x
         return mask_pred, label_pred.float()
 

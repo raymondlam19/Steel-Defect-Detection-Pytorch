@@ -158,6 +158,7 @@ class UNet(BaseModel):
         # Final Convolution
         self.conv_last = nn.Conv2d(32, out_classes, kernel_size=1)
         self.sigmoid = nn.Sigmoid()             # If we use BCEWithLogitsLoss which already include sigmoid, so no need sigmoid. If binary_cross_entropy, need sigmoid.
+        self.bn = nn.BatchNorm1d(4)
 
     def forward(self, x):
         x = self.bn_input(x)                    # (batch_size,  1, 256, 1600)
@@ -172,9 +173,9 @@ class UNet(BaseModel):
         x = self.up_conv1(x, skip1_out)         # (batch_size, 32, 256, 1600)
         x = self.conv_last(x)                   # (batch_size, 4, 256, 1600)
         mask_pred = self.sigmoid(x)
-        label_pred = mask_pred.sum(-1).sum(-1)>=115     # (batch_size, 4)   # 115 is referenced from the min of mask.sum() in training set
+        label_pred = self.sigmoid(self.bn(mask_pred.sum(-1).sum(-1)))   # (batch_size, 4)
         del x
-        return mask_pred, label_pred.float()
+        return mask_pred, label_pred
 
 if __name__ == '__main__':
     model = UNet(in_channels=1, out_classes=4, use_resnet=False, up_sample_mode='conv_transpose', load_ver=None)    #load_ver='0530_225114'

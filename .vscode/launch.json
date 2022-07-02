@@ -11,9 +11,9 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["-c=config.json"],
+            //"args": ["-c=config.json"],
             //"args": ["--e=50", "-r=saved/models/Steel_Defect_Detection/0529_091215/checkpoint-epoch40.pth"],
-            //"args": ["-r=saved/models/Steel_Defect_Detection/0606_234507/checkpoint-epoch9.pth"],
+            "args": ["-r=saved/models/Steel_Defect_Detection/0529_091215/model_best.pth"],
             "env": {"PYTHONPATH": "${workspaceFolder}"}
         }
     ]

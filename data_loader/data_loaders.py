@@ -103,7 +103,7 @@ class ImageDataset(Data.Dataset):
         return dotdict(sample)
 
 class ImageDataLoader(Data.DataLoader):
-    def __init__(self, include_null, validation_split, batch_size, shuffle=True):
+    def __init__(self, validation_split, batch_size, shuffle=True, include_null=True):
         self.dataset = ImageDataset(include_null, train=True)
         self.train_dataset, self.val_dataset = Data.random_split(self.dataset, [int(len(self.dataset)*(1-validation_split)), len(self.dataset)-int(len(self.dataset)*(1-validation_split))])
         self.test_dataset = ImageDataset(include_null=True, train=False)
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from torch.autograd import Variable
 
-    dl = ImageDataLoader(include_null=False, validation_split=0.2, batch_size=8, shuffle=True)
+    dl = ImageDataLoader(validation_split=0.2, batch_size=8, shuffle=True, include_null=False)
     train_loader = dl.train_loader
     print(f"Train set length: {len(train_loader.dataset)}")
     print(f"Total training steps in an epoch: {len(train_loader)}\n")

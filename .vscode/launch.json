@@ -13,7 +13,7 @@
             "justMyCode": true,
             //"args": ["-c=config.json"],
             //"args": ["--e=50", "-r=saved/models/Steel_Defect_Detection/0529_091215/checkpoint-epoch40.pth"],
-            "args": ["-r=saved/models/Steel_Defect_Detection/0529_091215/model_best.pth"],
+            "args": ["-r=saved/models/Steel_Defect_Detection/0703_002623/model_best.pth"],
             "env": {"PYTHONPATH": "${workspaceFolder}"}
         }
     ]

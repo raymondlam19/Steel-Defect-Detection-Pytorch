@@ -22,10 +22,10 @@
     "data_loader": {
         "type": "ImageDataLoader",
         "args":{
-            "include_null": false,
             "validation_split": 0.2,
             "batch_size": 4,
-            "shuffle": true
+            "shuffle": true,
+            "include_null": false
         }
     },
     "optimizer": {
@@ -59,7 +59,7 @@
         "verbosity": 2,
         
         "monitor": "min val_loss",
-        "early_stop": 5,
+        "early_stop": 6,
 
         "tensorboard": false
     }

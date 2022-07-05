@@ -16,7 +16,7 @@ class DoubleConv(nn.Module):
                         padding=1                # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1 (1/2)
                     ), 
                     nn.BatchNorm2d(num_features=out_channels),   # Normally, num_features = no. of layers of pervious layer
-                    nn.ReLU(inplace=True)        # inplace=True to save memory
+                    nn.ELU(inplace=True)        # inplace=True to save memory
                     ]
         if pool: layers.append(nn.MaxPool2d(kernel_size=2, stride=2))   # width/2
         return nn.Sequential(*layers)
@@ -28,7 +28,7 @@ class DoubleConv(nn.Module):
         self.conv2 = self.conv_block(out_channels, out_channels, pool=False)
         if self.use_resnet:
             self.convRes = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
-        self.relu = nn.ReLU(inplace=True)
+        self.elu = nn.ELU(inplace=True)
 
     def forward(self, x):
         identity = x
@@ -36,7 +36,7 @@ class DoubleConv(nn.Module):
         x = self.conv2(x)
         if self.use_resnet:
             x = self.convRes(identity) + x         # where Resnet happens here
-            x = self.relu(x)
+            x = self.elu(x)
         return x
     
 class DownBlock(nn.Module):
@@ -67,7 +67,7 @@ class FirstHalfUNet(BaseModel):
         self.fc1 = nn.Sequential(
             nn.Linear(512, 128),
             nn.BatchNorm1d(128),
-            nn.ReLU(inplace=True)
+            nn.ELU(inplace=True)
         )
         self.fc2 = nn.Sequential(
             nn.Linear(128, out_classes),

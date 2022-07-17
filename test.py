@@ -10,19 +10,10 @@ from torch.autograd import Variable
 import numpy as np
 import pandas as pd
 
+from utils import build_rles
 
 def main(config):
     logger = config.get_logger('test')
-
-    # setup data_loader instances
-    # data_loader = getattr(module_data, config['data_loader']['type'])(
-    #     config['data_loader']['args']['data_dir'],
-    #     batch_size=512,
-    #     shuffle=False,
-    #     validation_split=0.0,
-    #     training=False,
-    #     num_workers=2
-    # )
 
     data_loader = config.init_obj('data_loader', module_data)
     test_loader = data_loader.test_loader
@@ -33,6 +24,7 @@ def main(config):
 
     logger.info('Loading checkpoint: {} ...'.format(config.resume))
     checkpoint = torch.load(config.resume)
+
     state_dict = checkpoint['state_dict']
     if config['n_gpu'] > 1:
         model = torch.nn.DataParallel(model)
@@ -42,33 +34,47 @@ def main(config):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = model.to(device)
     
-    testset_imgids = []
-    testset_preds = []
+    df_out = pd.DataFrame()
 
+    logger.info("Predicting testset...")
     model.eval()
     with torch.no_grad():
-        for batch_idx, data in enumerate(tqdm(test_loader)):
+        for i, data in enumerate(tqdm(test_loader)):
             imgids = data['ImageId']
             images = Variable(data['image']).to(device)
-            preds_prob = model(images)
+            if checkpoint['arch']=="FirstHalfUNet":
+                preds_prob = model(images)
+            else:
+                preds_prob, _ = model(images)
             preds = (preds_prob>0.5).float()
-
-            testset_imgids.extend(imgids)
-            testset_preds.extend(preds.cpu().detach().tolist())
-
-    testset_imgids = np.array(testset_imgids)
-    testset_preds = np.array(testset_preds)
-
-    #overwrite the testset.csv
-    testset_output = pd.DataFrame({
-        'ImageId': testset_imgids,
-        '1': testset_preds[:,0],
-        '2': testset_preds[:,1],
-        '3': testset_preds[:,2],
-        '4': testset_preds[:,3]
-    })
-    testset_output.to_csv('data/testset_output.csv', index=False)
-    print('Saved testset_output.csv')
+            preds = preds.detach().cpu().numpy()
+            
+            if checkpoint['arch']=="FirstHalfUNet":
+                pred_1 = preds[:, 0]
+                pred_2 = preds[:, 1]
+                pred_3 = preds[:, 2]
+                pred_4 = preds[:, 3]
+            else:
+                pred_1 = build_rles(preds[:, 0, :, :])
+                pred_2 = build_rles(preds[:, 1, :, :])
+                pred_3 = build_rles(preds[:, 2, :, :])
+                pred_4 = build_rles(preds[:, 3, :, :])
+                
+            df = pd.DataFrame({
+                'ImageId': imgids,
+                '1': pred_1,
+                '2': pred_2,
+                '3': pred_3,
+                '4': pred_4})
+            
+            df_out = pd.concat([df_out, df], axis=0, ignore_index=True)
+    
+    if checkpoint['arch']=="FirstHalfUNet":
+        df_out.to_csv('data/testset_label_output.csv', index=False)
+        logger.info("Saved testset_label_output.csv")
+    else:
+        df_out.to_csv('data/testset_rle_output.csv', index=False)
+        logger.info("Saved testset_rle_output.csv")
 
 if __name__ == '__main__':
     args = argparse.ArgumentParser(description='PyTorch Template')

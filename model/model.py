@@ -3,10 +3,7 @@ import torch.nn as nn
 import os
 from base import BaseModel
 
-try:
-    from utils import ROOT_DIR
-except:
-    print('testing: model.py')
+from utils import ROOT_DIR
 
 class DoubleConv(nn.Module):
     # conv_block: Conv => BN => ReLu => (MaxPool)
@@ -19,7 +16,7 @@ class DoubleConv(nn.Module):
                         padding=1                # if want same width and length of this image after con2d, padding=(kernel_size-1)/2 if stride=1 (1/2)
                     ), 
                     nn.BatchNorm2d(num_features=out_channels),   # Normally, num_features = no. of layers of pervious layer
-                    nn.ReLU(inplace=True)        # inplace=True to save memory
+                    nn.ELU(inplace=True)        # inplace=True to save memory
                     ]
         if pool: layers.append(nn.MaxPool2d(kernel_size=2, stride=2))   # width/2
         return nn.Sequential(*layers)
@@ -29,8 +26,9 @@ class DoubleConv(nn.Module):
         self.use_resnet = use_resnet
         self.conv1 = self.conv_block(in_channels, out_channels, pool=False)
         self.conv2 = self.conv_block(out_channels, out_channels, pool=False)
-        self.convRes = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
-        self.relu = nn.ReLU(inplace=True)
+        if self.use_resnet:
+            self.convRes = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+        self.elu = nn.ELU(inplace=True)
 
     def forward(self, x):
         identity = x
@@ -38,7 +36,7 @@ class DoubleConv(nn.Module):
         x = self.conv2(x)
         if self.use_resnet:
             x = self.convRes(identity) + x         # where Resnet happens here
-            x = self.relu(x)
+            x = self.elu(x)
         return x
     
 class DownBlock(nn.Module):
@@ -53,7 +51,7 @@ class DownBlock(nn.Module):
         return (down_out, skip_out)
 
 class FirstHalfUNet(BaseModel):
-    def __init__(self, in_channels, out_classes=4, use_resnet=True):
+    def __init__(self, in_channels, out_classes, use_resnet):
         super().__init__()
         # BN first
         self.bn_input = nn.BatchNorm2d(1)
@@ -69,7 +67,7 @@ class FirstHalfUNet(BaseModel):
         self.fc1 = nn.Sequential(
             nn.Linear(512, 128),
             nn.BatchNorm1d(128),
-            nn.ReLU(inplace=True)
+            nn.ELU(inplace=True)
         )
         self.fc2 = nn.Sequential(
             nn.Linear(128, out_classes),
@@ -108,15 +106,10 @@ class UpBlock(nn.Module):
         return x
 
 class UNet(BaseModel):
-    def load_1st_model(self, load_ver, freeze_layer):
+    def load_1st_model(self, load_ver):
         # load checkpoint
-        try:
-            root_dir = ROOT_DIR
-        except:
-            root_dir = os.path.join(os.path.dirname(__file__), '..')
-
+        root_dir = ROOT_DIR
         checkpoint_path = os.path.join(root_dir, 'saved/models/Steel_Defect_Detection', load_ver, 'model_best.pth')
-
         try:
             checkpoint = torch.load(checkpoint_path)
         except:
@@ -125,7 +118,7 @@ class UNet(BaseModel):
         in_channels = checkpoint['config']['arch']['args']['in_channels']
         out_classes = checkpoint['config']['arch']['args']['out_classes']
         use_resnet = checkpoint['config']['arch']['args']['use_resnet']
-        
+    
         # load model architecture
         model = FirstHalfUNet(in_channels=in_channels, out_classes=out_classes, use_resnet=use_resnet)
 
@@ -133,16 +126,19 @@ class UNet(BaseModel):
         model.load_state_dict(checkpoint['state_dict'])
         
         # freeze all layers
-        if freeze_layer:
-            for param in model.parameters():
-                param.requires_grad = False
+        for param in model.parameters():
+            param.requires_grad = False
         
-        return model, in_channels, out_classes, use_resnet
+        return model
 
-    def __init__(self, up_sample_mode='conv_transpose', load_ver='0530_225114', freeze_layer=True):
+    def __init__(self, in_channels, out_classes, use_resnet, up_sample_mode='conv_transpose', load_ver=None):
         super().__init__()
         # load 1st model with trained param
-        self.model, _, self.out_classes, self.use_resnet = self.load_1st_model(load_ver, freeze_layer)
+        if load_ver is None:
+            self.model = FirstHalfUNet(in_channels, out_classes, use_resnet)
+        else:
+            self.model = self.load_1st_model(load_ver)
+
         # BN first
         self.bn_input = list(self.model.children())[0]
         # Downsampling Path
@@ -152,16 +148,17 @@ class UNet(BaseModel):
         self.down_conv4 = nn.Sequential(list(self.model.children())[4])
         # Bottleneck
         self.double_conv = nn.Sequential(list(self.model.children())[5])
+        
         # Upsampling Path
         self.up_sample_mode = up_sample_mode
-        self.up_conv4 = UpBlock(512, 256, self.use_resnet, up_sample_mode)
-        self.up_conv3 = UpBlock(256, 128, self.use_resnet, up_sample_mode)
-        self.up_conv2 = UpBlock(128, 64, self.use_resnet, up_sample_mode)
-        self.up_conv1 = UpBlock(64, 32, self.use_resnet, up_sample_mode)
+        self.up_conv4 = UpBlock(512, 256, use_resnet, up_sample_mode)
+        self.up_conv3 = UpBlock(256, 128, use_resnet, up_sample_mode)
+        self.up_conv2 = UpBlock(128, 64, use_resnet, up_sample_mode)
+        self.up_conv1 = UpBlock(64, 32, use_resnet, up_sample_mode)
         # Final Convolution
-        self.conv_last = nn.Conv2d(32, self.out_classes, kernel_size=1)
-        # We define a BCEWithLogitsLoss since we're comparing pixel by pixel. In addition, we didn't include a final sigmoid activation as this loss function includes a sigmoid for us.
-        self.sigmoid = nn.Sigmoid()
+        self.conv_last = nn.Conv2d(32, out_classes, kernel_size=1)
+        self.sigmoid = nn.Sigmoid()             # If we use BCEWithLogitsLoss which already include sigmoid, so no need sigmoid. If binary_cross_entropy, need sigmoid.
+        self.bn = nn.BatchNorm1d(4)
 
     def forward(self, x):
         x = self.bn_input(x)                    # (batch_size,  1, 256, 1600)
@@ -175,9 +172,12 @@ class UNet(BaseModel):
         x = self.up_conv2(x, skip2_out)         # (batch_size, 64, 128, 800)
         x = self.up_conv1(x, skip1_out)         # (batch_size, 32, 256, 1600)
         x = self.conv_last(x)                   # (batch_size, 4, 256, 1600)
-        x = self.sigmoid(x)
-        return x
+        mask_pred = self.sigmoid(x)
+        label_pred = self.sigmoid(self.bn(mask_pred.sum(-1).sum(-1)))   # (batch_size, 4)
+        del x
+        return mask_pred, label_pred
 
 if __name__ == '__main__':
-    model = UNet(up_sample_mode='conv_transpose', load_ver='0530_225114')
+    model = UNet(in_channels=1, out_classes=4, use_resnet=False, up_sample_mode='conv_transpose', load_ver=None)    #load_ver='0530_225114'
+    #model = FirstHalfUNet(in_channels=1, out_classes=4, use_resnet=False)
     print(model)

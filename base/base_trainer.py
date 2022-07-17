@@ -109,7 +109,7 @@ class BaseTrainer:
             if epoch % self.save_period == 0:
                 self._save_checkpoint(epoch, save_best=best)
             
-            # save history into a csv at the end of the last epoch
+            # save history into a csv at the end of the each epoch
             df_history =  pd.DataFrame(self.history)
             df_history.to_csv(os.path.join(self.log_dir, 'history.csv'), index=False)
             print('Saved History csv')
@@ -117,26 +117,21 @@ class BaseTrainer:
         # draw loss & metric at the end of training
         self._draw_loss_metric(df_history)
 
-    def _draw_loss_metric(self, history):
+    def _draw_loss_metric(self, df_history):
         '''
-            Plot train_loss, val_loss, val_acc every epoch end
+            Plot train_loss, val_loss, val_acc at the end of training
         '''
-        num_plots = len(self.metric_ftns)+1
-
+        metrics_list = df_history.iloc[:,1:].columns.to_list()
+        metrics_list = [x.split('train_')[1] for x in metrics_list if 'train_' in x]
+        num_plots = len(metrics_list)
         fig, axs = plt.subplots(num_plots,1, figsize=(12,10))
-        axs[0].set_title("train_loss vs val_loss")
-        axs[0].plot(history['epoch'], history['train_loss'])
-        axs[0].plot(history['epoch'], history['val_loss'])
-        axs[0].set_xlabel('Epoch')
-        axs[0].set_ylabel('Loss')
-        axs[0].legend(['train_loss', 'val_loss'], loc='upper right')
-
-        for i, met in enumerate(self.metric_ftns):
-            axs[i+1].set_title(met.__name__)
-            axs[i+1].plot(history['epoch'], history['val_'+met.__name__])
-            axs[i+1].set_xlabel('Epoch')
-            axs[i+1].set_ylabel(met.__name__)
-        
+        for i, met in enumerate(metrics_list):
+            axs[i].set_title(met)
+            axs[i].plot(df_history['epoch'], df_history['train_'+met])
+            axs[i].plot(df_history['epoch'], df_history['val_'+met])
+            axs[i].set_xlabel('Epoch')
+            axs[i].set_ylabel(met)
+            axs[i].legend(['train_'+met, 'val_'+met], loc='upper right')
         plt.show()
 
     def _save_checkpoint(self, epoch, save_best=False):

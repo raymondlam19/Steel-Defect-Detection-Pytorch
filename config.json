@@ -13,16 +13,19 @@
     "arch": {
         "type": "UNet",
         "args": {
-            "up_sample_mode": "conv_transpose",
-            "load_ver": "0529_091215"
+            "in_channels": 1,
+            "out_classes": 4,
+            "use_resnet": true,
+            "up_sample_mode": "conv_transpose"
         }
     },
     "data_loader": {
         "type": "ImageDataLoader",
         "args":{
             "validation_split": 0.2,
-            "batch_size": 8,
-            "shuffle": true
+            "batch_size": 4,
+            "shuffle": true,
+            "include_null": false
         }
     },
     "optimizer": {
@@ -38,6 +41,7 @@
         "accuracy"
     ],
     "metrics": [
+        "accuracy",
         "iou"
     ],
     "lr_scheduler": {
@@ -55,8 +59,8 @@
         "verbosity": 2,
         
         "monitor": "min val_loss",
-        "early_stop": 5,
+        "early_stop": 6,
 
-        "tensorboard": true
+        "tensorboard": false
     }
 }

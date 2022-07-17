@@ -28,10 +28,14 @@ class Trainer(BaseTrainer):
         self.do_validation = self.val_loader is not None
         self.lr_scheduler = lr_scheduler
         self.log_step = 100     #int(np.sqrt(train_loader.batch_size))
-
         self.log = MetricTracker().result()
-        self.train_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
-        self.valid_metrics = MetricTracker('loss', *[m.__name__ for m in self.metric_ftns], writer=self.writer)
+
+        if self.model.__class__.__name__ == 'FirstHalfUNet':
+            metrics_list = ['loss'] + list(self.metric_ftns.keys())
+        else:
+            metrics_list = ['loss', 'loss_mask', 'loss_label'] + list(self.metric_ftns.keys())
+        self.train_metrics = MetricTracker(*metrics_list, writer=self.writer)
+        self.valid_metrics = MetricTracker(*metrics_list, writer=self.writer)
 
     def _train_epoch(self, epoch):
         """
@@ -44,29 +48,49 @@ class Trainer(BaseTrainer):
         self.train_metrics.reset()
         for batch_idx, batch in enumerate(self.train_loader):
             if self.model.__class__.__name__ == 'FirstHalfUNet':
-                data = Variable(batch['image']).to(self.device)
-                target = Variable(batch['label']).to(self.device)
+                img = Variable(batch['image']).to(self.device)
+                label_tl = Variable(batch['label']).to(self.device)
+
+                label_pred = self.model(img)
+                loss = self.criterion(label_pred, label_tl)
             else:
-                data = Variable(batch['image']).to(self.device)
-                target = Variable(batch['mask']).to(self.device)
+                img = Variable(batch['image']).to(self.device)
+                label_tl = Variable(batch['label']).to(self.device)
+                mask_tl = Variable(batch['mask']).to(self.device)
+
+                mask_pred, label_pred = self.model(img)
+                loss_mask = self.criterion(mask_pred, mask_tl)
+                loss_label = self.criterion(label_pred, label_tl)
+                loss = loss_mask + loss_label
 
             self.optimizer.zero_grad()
-            output = self.model(data)
-            loss = self.criterion(output, target)
             loss.backward()
             self.optimizer.step()
 
             self.writer.set_step((epoch - 1) * self.len_epoch + batch_idx)
             self.train_metrics.update('loss', loss.item())
-            for met in self.metric_ftns:
-                self.train_metrics.update(met.__name__, met(output, target))
+            if self.model.__class__.__name__ == 'UNet':
+                self.train_metrics.update('loss_mask', loss_mask.item())
+                self.train_metrics.update('loss_label', loss_label.item())
+                self.train_metrics.update('iou', self.metric_ftns['iou'](label_pred, label_tl))           
+            self.train_metrics.update('accuracy', self.metric_ftns['accuracy'](label_pred, label_tl))
 
             if batch_idx % self.log_step == 0:
-                self.logger.debug('Epoch: {}, Step: {}, step_train_loss: {:.4f}'.format(
-                    epoch,
-                    self._progress(batch_idx),
-                    loss.item()))
-                self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
+                if self.model.__class__.__name__ == 'FirstHalfUNet':
+                    self.logger.debug('Epoch: {}, Step: {}, step_train_loss: {:.4f}'.format(
+                        epoch,
+                        self._progress(batch_idx),
+                        loss.item()
+                        ))
+                else:
+                    self.logger.debug('Epoch: {}, Step: {}, step_train_loss: {:.4f}, step_train_loss_mask: {:.4f}, step_train_loss_label: {:.4f}'.format(
+                        epoch,
+                        self._progress(batch_idx),
+                        loss.item(),
+                        loss_mask.item(),
+                        loss_label.item()
+                        ))
+                self.writer.add_image('input', make_grid(img.cpu(), nrow=8, normalize=True))
 
             if batch_idx == self.len_epoch:
                 break
@@ -93,20 +117,30 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(self.val_loader)):
                 if self.model.__class__.__name__ == 'FirstHalfUNet':
-                    data = Variable(batch['image']).to(self.device)
-                    target = Variable(batch['label']).to(self.device)
-                else:
-                    data = Variable(batch['image']).to(self.device)
-                    target = Variable(batch['mask']).to(self.device)
+                    img = Variable(batch['image']).to(self.device)
+                    label_tl = Variable(batch['label']).to(self.device)
 
-                output = self.model(data)
-                loss = self.criterion(output, target)
+                    label_pred = self.model(img)
+                    loss = self.criterion(label_pred, label_tl)
+                else:
+                    img = Variable(batch['image']).to(self.device)
+                    label_tl = Variable(batch['label']).to(self.device)
+                    mask_tl = Variable(batch['mask']).to(self.device)
+
+                    mask_pred, label_pred = self.model(img)
+                    loss_mask = self.criterion(mask_pred, mask_tl)
+                    loss_label = self.criterion(label_pred, label_tl)
+                    loss = loss_mask + loss_label
 
                 self.writer.set_step((epoch - 1) * len(self.val_loader) + batch_idx, 'valid')
                 self.valid_metrics.update('loss', loss.item())
-                for met in self.metric_ftns:
-                    self.valid_metrics.update(met.__name__, met(output, target))
-                self.writer.add_image('input', make_grid(data.cpu(), nrow=8, normalize=True))
+                if self.model.__class__.__name__ == 'UNet':
+                    self.valid_metrics.update('loss_mask', loss_mask.item())
+                    self.valid_metrics.update('loss_label', loss_label.item())
+                    self.valid_metrics.update('iou', self.metric_ftns['iou'](label_pred, label_tl))           
+                self.valid_metrics.update('accuracy', self.metric_ftns['accuracy'](label_pred, label_tl))
+
+                self.writer.add_image('input', make_grid(img.cpu(), nrow=8, normalize=True))
 
         # add histogram of model parameters to the tensorboard
         for name, p in self.model.named_parameters():
